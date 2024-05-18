@@ -1,0 +1,17 @@
+{
+  "availability-zones:account=765481644205:region=ap-south-1": [
+    "ap-south-1a",
+    "ap-south-1b",
+    "ap-south-1c"
+  ],
+  "ami:account=765481644205:filters.architecture.0=arm64:filters.image-type.0=machine:filters.name.0=debian-12-arm64*:filters.state.0=available:owners.0=amazon:region=ap-south-1": "ami-0b8f7cae97697403b",
+  "availability-zones:account=360941741191:region=us-east-1": [
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+    "us-east-1e",
+    "us-east-1f"
+  ],
+  "ami:account=360941741191:filters.architecture.0=arm64:filters.image-type.0=machine:filters.name.0=debian-12-arm64*:filters.state.0=available:owners.0=amazon:region=us-east-1": "ami-003c4410d832eb31e"
+}
