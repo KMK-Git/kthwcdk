@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export class KthwcdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -28,6 +29,8 @@ export class KthwcdkStack extends cdk.Stack {
       'sudo dpkg -i amazon-ssm-agent.deb',
       'sudo systemctl enable amazon-ssm-agent',
       'sudo systemctl start amazon-ssm-agent',
+      'curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_arm64/session-manager-plugin.deb" -o "session-manager-plugin.deb"',
+      'sudo dpkg -i session-manager-plugin.deb',
     );
     const jumpbox = new ec2.Instance(this, 'jumpbox', {
       vpc: vpc,
@@ -43,6 +46,12 @@ export class KthwcdkStack extends cdk.Stack {
       },
       userData: userData,
     });
+    jumpbox.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:StartSession'],
+      effect: iam.Effect.ALLOW,
+      resources: ['*'],
+    }));
+    const keyPair = ec2.KeyPair.fromKeyPairName(this, 'KubeKeyPair', 'KubeKeyPair');
     const server = new ec2.Instance(this, 'server', {
       vpc: vpc,
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.A1, ec2.InstanceSize.MEDIUM),
@@ -56,6 +65,7 @@ export class KthwcdkStack extends cdk.Stack {
         subnetType: ec2.SubnetType.PUBLIC,
       },
       userData: userData,
+      keyPair: keyPair,
     });
     const node0 = new ec2.Instance(this, 'node0', {
       vpc: vpc,
@@ -70,6 +80,7 @@ export class KthwcdkStack extends cdk.Stack {
         subnetType: ec2.SubnetType.PUBLIC,
       },
       userData: userData,
+      keyPair: keyPair,
     });
     const node1 = new ec2.Instance(this, 'node1', {
       vpc: vpc,
@@ -84,6 +95,25 @@ export class KthwcdkStack extends cdk.Stack {
         subnetType: ec2.SubnetType.PUBLIC,
       },
       userData: userData,
+      keyPair: keyPair,
     });
+    jumpbox.connections.allowFrom(server.connections, ec2.Port.allTraffic());
+    jumpbox.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
+    jumpbox.connections.allowFrom(node1.connections, ec2.Port.allTraffic());
+
+
+    server.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
+    server.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
+    server.connections.allowFrom(node1.connections, ec2.Port.allTraffic());
+
+
+    node0.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
+    node0.connections.allowFrom(server.connections, ec2.Port.allTraffic());
+    node0.connections.allowFrom(node1.connections, ec2.Port.allTraffic());
+
+
+    node1.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
+    node1.connections.allowFrom(server.connections, ec2.Port.allTraffic());
+    node1.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
   }
 }
