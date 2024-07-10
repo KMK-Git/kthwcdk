@@ -21,6 +21,7 @@ export class KthwcdkStack extends cdk.Stack {
       owners: ['amazon'],
       windows: false,
     })
+    const keyPair = ec2.KeyPair.fromKeyPairName(this, 'KubeKeyPair', 'KubeKeyPair');
     const userData = ec2.UserData.forLinux()
     userData.addCommands(
       'mkdir /tmp/ssm',
@@ -32,6 +33,10 @@ export class KthwcdkStack extends cdk.Stack {
       'curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_arm64/session-manager-plugin.deb" -o "session-manager-plugin.deb"',
       'sudo dpkg -i session-manager-plugin.deb',
     );
+    const jumpboxRootVolume: ec2.BlockDevice = {
+      deviceName: '/dev/xvda',
+      volume: ec2.BlockDeviceVolume.ebs(10),
+    };
     const jumpbox = new ec2.Instance(this, 'jumpbox', {
       vpc: vpc,
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.A1, ec2.InstanceSize.MEDIUM),
@@ -45,13 +50,18 @@ export class KthwcdkStack extends cdk.Stack {
         subnetType: ec2.SubnetType.PUBLIC,
       },
       userData: userData,
+      keyPair: keyPair,
+      blockDevices: [jumpboxRootVolume],
     });
     jumpbox.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:StartSession'],
       effect: iam.Effect.ALLOW,
       resources: ['*'],
     }));
-    const keyPair = ec2.KeyPair.fromKeyPairName(this, 'KubeKeyPair', 'KubeKeyPair');
+    const rootVolume: ec2.BlockDevice = {
+      deviceName: '/dev/xvda',
+      volume: ec2.BlockDeviceVolume.ebs(20),
+    };
     const server = new ec2.Instance(this, 'server', {
       vpc: vpc,
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.A1, ec2.InstanceSize.MEDIUM),
@@ -66,6 +76,7 @@ export class KthwcdkStack extends cdk.Stack {
       },
       userData: userData,
       keyPair: keyPair,
+      blockDevices: [rootVolume],
     });
     const node0 = new ec2.Instance(this, 'node0', {
       vpc: vpc,
@@ -81,6 +92,7 @@ export class KthwcdkStack extends cdk.Stack {
       },
       userData: userData,
       keyPair: keyPair,
+      blockDevices: [rootVolume],
     });
     const node1 = new ec2.Instance(this, 'node1', {
       vpc: vpc,
@@ -96,6 +108,7 @@ export class KthwcdkStack extends cdk.Stack {
       },
       userData: userData,
       keyPair: keyPair,
+      blockDevices: [rootVolume],
     });
     jumpbox.connections.allowFrom(server.connections, ec2.Port.allTraffic());
     jumpbox.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
@@ -115,5 +128,15 @@ export class KthwcdkStack extends cdk.Stack {
     node1.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
     node1.connections.allowFrom(server.connections, ec2.Port.allTraffic());
     node1.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
+
+    const script = `tmux split-window -h  "ssh -J admin@${jumpbox.instancePublicDnsName} admin@${server.instancePublicDnsName}"
+    tmux select-layout tiled > /dev/null
+    tmux split-window -h  "ssh -J admin@${jumpbox.instancePublicDnsName} admin@${node0.instancePublicDnsName}"
+    tmux select-layout tiled > /dev/null
+    tmux split-window -h  "ssh -J admin@${jumpbox.instancePublicDnsName} admin@${node1.instancePublicDnsName}"
+    tmux select-layout tiled > /dev/null
+    tmux select-pane -t 0
+    ssh admin@${jumpbox.instancePublicDnsName}`;
+    new cdk.CfnOutput(this, 'connectScript', { value: script });
   }
 }
