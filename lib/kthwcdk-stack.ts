@@ -4,7 +4,7 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 
 export class KthwcdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, publicIpCidr: string, props?: cdk.StackProps) {
     super(scope, id, props);
     const vpc = new ec2.Vpc(this, 'vpc', {
       ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
@@ -110,24 +110,29 @@ export class KthwcdkStack extends cdk.Stack {
       keyPair: keyPair,
       blockDevices: [rootVolume],
     });
+
     jumpbox.connections.allowFrom(server.connections, ec2.Port.allTraffic());
     jumpbox.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
     jumpbox.connections.allowFrom(node1.connections, ec2.Port.allTraffic());
+    jumpbox.connections.allowFrom(ec2.Peer.ipv4(publicIpCidr), ec2.Port.SSH);
 
 
     server.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
     server.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
     server.connections.allowFrom(node1.connections, ec2.Port.allTraffic());
+    server.connections.allowFrom(ec2.Peer.ipv4(publicIpCidr), ec2.Port.SSH);
 
 
     node0.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
     node0.connections.allowFrom(server.connections, ec2.Port.allTraffic());
     node0.connections.allowFrom(node1.connections, ec2.Port.allTraffic());
+    node0.connections.allowFrom(ec2.Peer.ipv4(publicIpCidr), ec2.Port.SSH);
 
 
     node1.connections.allowFrom(jumpbox.connections, ec2.Port.allTraffic());
     node1.connections.allowFrom(server.connections, ec2.Port.allTraffic());
     node1.connections.allowFrom(node0.connections, ec2.Port.allTraffic());
+    node1.connections.allowFrom(ec2.Peer.ipv4(publicIpCidr), ec2.Port.SSH);
 
     const script = `tmux split-window -h  "ssh -J admin@${jumpbox.instancePublicDnsName} admin@${server.instancePublicDnsName}"
     tmux select-layout tiled > /dev/null
@@ -136,7 +141,7 @@ export class KthwcdkStack extends cdk.Stack {
     tmux split-window -h  "ssh -J admin@${jumpbox.instancePublicDnsName} admin@${node1.instancePublicDnsName}"
     tmux select-layout tiled > /dev/null
     tmux select-pane -t 0
-    ssh admin@${jumpbox.instancePublicDnsName}`;
+    ssh -A admin@${jumpbox.instancePublicDnsName}`;
     new cdk.CfnOutput(this, 'connectScript', { value: script });
   }
 }
