@@ -34,6 +34,8 @@ export class KthwcdkStack extends cdk.Stack {
       'sudo dpkg -i session-manager-plugin.deb',
       'wget https://go.dev/dl/go1.22.5.linux-arm64.tar.gz',
       'sudo rm -rf /usr/local/go && tar -C /usr/local -xzf go1.22.5.linux-arm64.tar.gz',
+      'echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.bashrc',
+      'echo "export PATH=$PATH:/usr/local/go/bin" | sudo tee -a /root/.bashrc',
       'sudo apt-get update',
       'sudo apt-get install -y ca-certificates curl',
       'sudo install -m 0755 -d /etc/apt/keyrings',
@@ -44,7 +46,9 @@ export class KthwcdkStack extends cdk.Stack {
       'sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin',
       'curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-arm64',
       'chmod +x ./kind',
-      'sudo mv ./kind /usr/local/bin/kind'
+      'sudo mv ./kind /usr/local/bin/kind',
+      'curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"',
+      'sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl'
     );
     const mainServerRootVolume: ec2.BlockDevice = {
       deviceName: '/dev/xvda',
